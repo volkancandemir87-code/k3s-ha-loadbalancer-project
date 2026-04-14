@@ -53,66 +53,70 @@ Traefik Ingress → Port 8888'e taşındı
 
 ---
 
-## ⚙️ Dosya Yapısı
+## 📁 Klasör Yapısı
 
 k3s-ha-loadbalancer-project/
 ├── haproxy/
-│ └── haproxy.cfg # HAProxy Round Robin config
+│ ├── haproxy.cfg # HAProxy Round Robin config
+│ └── haproxy-loadbalancer.cfg # HAProxy yapılandırması
 ├── keepalived/
-│ └── keepalived-master.conf # VIP / VRRP yapılandırması
+│ ├── keepalived-master.conf # VIP / VRRP Master yapılandırması
+│ └── keepalived-vip.conf # VIP tanımı
+├── kubernetes/
+│ └── kubernetes.yaml # K3s Deployment + Service + Ingress
 ├── nginx/
 │ ├── sunucu1-index.html # Mavi sayfa (Master)
 │ └── sunucu2-index.html # Kırmızı sayfa (Worker)
-├── kubernetes/
-│ └── kubernetes.yaml # K3s Deployment + Service + Ingress
+├── scripts/
+│ └── system-health-report.sh # Sunucu & K8s sağlık raporu (Gmail SMTP)
 └── README.md
 
 
 ---
 
-## 🔥 Kritik Sorun ve Çözüm: Port Savaşı
+## ⚙️ scripts/system-health-report.sh
 
-Bu projede karşılaşılan en önemli sorun **port çakışmasıydı.**
+Sunucu ve Kubernetes cluster sağlık durumunu toplayıp **görsel HTML rapor** olarak Gmail üzerinden e-posta gönderen Bash scriptidir.
 
-**Sorun:** K3s kurulduğunda otomatik olarak gelen **Traefik**, `LoadBalancer` tipiyle her iki sunucunun IP'sine port 80'i bağlamıştı. HAProxy da port 80 istiyordu. İki servis aynı kapıyı tutmaya çalışıyordu.
+**Topladığı Veriler:**
+- CPU, RAM, Disk kullanımı
+- Uptime ve Load Average
+- Nginx, HAProxy, Keepalived, K3s servis durumları
+- Kubernetes Node durumları
+- Kubernetes Pod durumları (tüm namespace'ler)
 
-**Teşhis:**
+**Crontab — 2 saatte bir otomatik çalışır:**
 ```bash
-sudo kubectl get svc -n kube-system | grep traefik
-sudo ss -tlnp | grep :80
-Çözüm: Traefik'i kubectl patch ile port 8888'e taşıdık:
+0 */2 * * * /home/volkancandemir/system-health-report.sh
+Kullanım:
+
+bash
+Copy
+chmod +x scripts/system-health-report.sh
+# APP_PASSWORD değişkenine Gmail App Password gir
+sudo ./scripts/system-health-report.sh
+🔥 Kritik Sorun ve Çözüm: Port Savaşı
+Sorun: K3s'in otomatik kurduğu Traefik, port 80'i tutuyordu. HAProxy da port 80 istiyordu.
+
+Çözüm: Traefik port 8888'e taşındı:
 
 bash
 Copy
 sudo kubectl patch svc traefik -n kube-system --type='json' \
   -p='[{"op":"replace","path":"/spec/ports/0/port","value":8888},
        {"op":"replace","path":"/spec/ports/1/port","value":8443}]'
-Sonuç: Port 80 tamamen HAProxy'ye bırakıldı.
-
 🎬 Failover Test Senaryosu
-Tarayıcıdan http://192.168.217.150 aç → Mavi (Sunucu 1) veya Kırmızı (Sunucu 2) sayfa gelir
-F5'e her basışta Round Robin devreye girer, sayfa değişir
-Master'da Keepalived'ı durdur:
+http://192.168.217.150 → Mavi (Sunucu 1) veya Kırmızı (Sunucu 2) sayfa gelir
+F5'e her basışta Round Robin devreye girer
+Master'da Keepalived durdurulur → VIP Worker'a geçer → Kesintisiz çalışır
 bash
 Copy
-sudo systemctl stop keepalived
-VIP otomatik olarak Worker'a geçer, tarayıcı kesintisiz çalışmaya devam eder
-Master'ı geri getir:
-bash
-Copy
-sudo systemctl start keepalived
+sudo systemctl stop keepalived   # Failover tetikle
+sudo systemctl start keepalived  # Geri getir
 📦 Docker & Kubernetes
-Speedtest uygulaması Docker ile build edilip Docker Hub'a push edildi:
-
 bash
 Copy
 docker build -t myprecious1987/speedtest:v1 .
 docker push myprecious1987/speedtest:v1
 kubectl apply -f kubernetes/kubernetes.yaml
-Uygulama speedtest namespace'inde çalışmaktadır:
-
-bash
-Copy
 kubectl get pods -n speedtest
-kubectl get svc -n speedtest
-kubectl get ingress -n speedtest
