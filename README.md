@@ -53,6 +53,17 @@ Traefik Ingress → Port 8888'e taşındı
 
 ---
 
+## 🐳 Docker Hub İmajları
+
+| İmaj | Açıklama |
+|------|----------|
+| [myprecious1987/nginx-sunucu1:v1](https://hub.docker.com/r/myprecious1987/nginx-sunucu1) | Mavi sayfa — Master Nginx |
+| [myprecious1987/nginx-sunucu2:v1](https://hub.docker.com/r/myprecious1987/nginx-sunucu2) | Kırmızı sayfa — Worker Nginx |
+| [myprecious1987/health-report:v1](https://hub.docker.com/r/myprecious1987/health-report) | Sunucu & K8s sağlık raporu |
+| [myprecious1987/speedtest:v1](https://hub.docker.com/r/myprecious1987/speedtest) | Speedtest uygulaması |
+
+---
+
 ## 📁 Klasör Yapısı
 
 k3s-ha-loadbalancer-project/
@@ -65,9 +76,12 @@ k3s-ha-loadbalancer-project/
 ├── kubernetes/
 │ └── kubernetes.yaml # K3s Deployment + Service + Ingress
 ├── nginx/
+│ ├── Dockerfile.sunucu1 # Sunucu 1 Docker imajı
+│ ├── Dockerfile.sunucu2 # Sunucu 2 Docker imajı
 │ ├── sunucu1-index.html # Mavi sayfa (Master)
 │ └── sunucu2-index.html # Kırmızı sayfa (Worker)
 ├── scripts/
+│ ├── Dockerfile # Health report Docker imajı
 │ └── system-health-report.sh # Sunucu & K8s sağlık raporu (Gmail SMTP)
 └── README.md
 
@@ -88,13 +102,11 @@ Sunucu ve Kubernetes cluster sağlık durumunu toplayıp **görsel HTML rapor** 
 **Crontab — 2 saatte bir otomatik çalışır:**
 ```bash
 0 */2 * * * /home/volkancandemir/system-health-report.sh
-Kullanım:
+Docker ile çalıştırma:
 
 bash
 Copy
-chmod +x scripts/system-health-report.sh
-# APP_PASSWORD değişkenine Gmail App Password gir
-sudo ./scripts/system-health-report.sh
+docker run myprecious1987/health-report:v1
 🔥 Kritik Sorun ve Çözüm: Port Savaşı
 Sorun: K3s'in otomatik kurduğu Traefik, port 80'i tutuyordu. HAProxy da port 80 istiyordu.
 
@@ -113,7 +125,7 @@ bash
 Copy
 sudo systemctl stop keepalived   # Failover tetikle
 sudo systemctl start keepalived  # Geri getir
-📦 Docker & Kubernetes
+📦 Docker & Kubernetes — Speedtest
 bash
 Copy
 docker build -t myprecious1987/speedtest:v1 .
